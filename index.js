@@ -5,39 +5,43 @@ import { oai_settings } from "../../../openai.js";
 const extensionName = "prompt-switch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
+const COLORS = [
+    { id: "red",    hex: "#ff4444", dim: "#883333" },
+    { id: "blue",   hex: "#4488ff", dim: "#335577" },
+    { id: "green",  hex: "#44dd66", dim: "#336644" },
+    { id: "yellow", hex: "#ffcc44", dim: "#887733" },
+    { id: "purple", hex: "#cc55ff", dim: "#663388" },
+];
+
+const defaultSwitch = { state: false, onSnap: null, offSnap: null };
+
 const defaultSettings = {
-    state: false,        // false = OFF, true = ON
-    onSnap: null,        // { [identifier]: enabledBool } or null
-    offSnap: null,
+    switches: COLORS.reduce((acc, c) => (acc[c.id] = structuredClone(defaultSwitch), acc), {}),
 };
 
 function settings() {
     extension_settings[extensionName] = extension_settings[extensionName] || {};
-    for (const [k, v] of Object.entries(defaultSettings)) {
-        if (extension_settings[extensionName][k] === undefined) {
-            extension_settings[extensionName][k] = structuredClone(v);
-        }
+    const s = extension_settings[extensionName];
+    s.switches = s.switches || {};
+    for (const c of COLORS) {
+        if (!s.switches[c.id]) s.switches[c.id] = structuredClone(defaultSwitch);
     }
-    return extension_settings[extensionName];
+    return s;
 }
+
+function sw(colorId) { return settings().switches[colorId]; }
 
 // ----- prompt-order access -----
 
-// Returns the default/global prompt order — what the prompt manager UI
-// shows unless the user has explicitly created a per-character override
-// (rare). ST tags this entry with character_id === 100001. Falls back to
-// the first non-empty order if the 100001 default isn't present.
 function getCurrentOrder() {
     const po = oai_settings?.prompt_order;
     if (!po) { console.warn("[prompt-switch] oai_settings.prompt_order missing"); return null; }
 
-    // Normalize both possible shapes into an array of { character_id, order }.
     let entries;
     if (Array.isArray(po)) {
         entries = po;
     } else if (typeof po === "object") {
-        entries = Object.entries(po).map(([k, v]) =>
-            ({ character_id: k, order: v?.order || v }));
+        entries = Object.entries(po).map(([k, v]) => ({ character_id: k, order: v?.order || v }));
     } else {
         return null;
     }
@@ -55,9 +59,7 @@ function captureCurrentSnapshot() {
     if (!order) return null;
     const snap = {};
     for (const item of order) {
-        if (item && item.identifier !== undefined) {
-            snap[item.identifier] = !!item.enabled;
-        }
+        if (item && item.identifier !== undefined) snap[item.identifier] = !!item.enabled;
     }
     return snap;
 }
@@ -71,44 +73,28 @@ function applySnapshot(snap) {
         if (!item || item.identifier === undefined) continue;
         if (Object.prototype.hasOwnProperty.call(snap, item.identifier)) {
             const target = !!snap[item.identifier];
-            if (item.enabled !== target) {
-                item.enabled = target;
-                changed++;
-            }
+            if (item.enabled !== target) { item.enabled = target; changed++; }
         }
     }
     return changed;
 }
 
-// Force the prompt manager UI to re-render after we mutate state. ST doesn't
-// expose a clean hook, so try several paths and fall back to simulating a
-// toggle-click in the DOM for each prompt whose state no longer matches
-// what we've written to data.
-async function refreshPromptManagerUI(snapApplied) {
-    // 1) Global reference (some ST versions).
+async function refreshPromptManagerUI(snap) {
     try {
         if (typeof window !== "undefined" && window.promptManager?.render) {
             window.promptManager.render();
             return;
         }
     } catch (_) {}
-    // 2) Dynamic import of openai.js.
     try {
         const mod = await import("../../../openai.js");
         if (mod.promptManager?.render) { mod.promptManager.render(); return; }
         if (typeof mod.renderPromptManager === "function") { mod.renderPromptManager(); return; }
     } catch (_) {}
-    // 3) DOM toggle fallback — click ST's own toggle for any prompt whose
-    //    visible UI state is out of sync with the data we just wrote.
-    if (snapApplied) syncPromptManagerDom(snapApplied);
-    // 4) Broadcast events as a last resort.
+    if (snap) syncPromptManagerDom(snap);
     try { eventSource.emit(event_types.SETTINGS_UPDATED); } catch (_) {}
 }
 
-// For each identifier in `snap`, if the DOM toggle doesn't visually match
-// the target, click it. ST's own click handler flips data + redraws + saves,
-// which is precisely the refresh we want. Tries a few selector variants to
-// survive minor ST version differences.
 function syncPromptManagerDom(snap) {
     for (const [id, target] of Object.entries(snap)) {
         const $row = $(`#completion_prompt_manager_list [data-pm-identifier="${id}"]`).first();
@@ -121,102 +107,126 @@ function syncPromptManagerDom(snap) {
     }
 }
 
-// ----- state operations -----
+// ----- state ops -----
 
-function captureOn() {
+function captureOn(colorId) {
     const snap = captureCurrentSnapshot();
-    if (!snap) {
-        toastr.warning("No active character / prompt order — can't capture.");
-        return;
-    }
-    settings().onSnap = snap;
+    if (!snap) { toastr.warning("No prompt order found — can't capture."); return; }
+    sw(colorId).onSnap = snap;
     saveSettingsDebounced();
     updateUI();
-    toastr.success(`ON snapshot captured (${Object.keys(snap).length} prompts).`);
+    toastr.success(`[${colorId}] ON snapshot captured (${Object.keys(snap).length} prompts).`);
 }
 
-function captureOff() {
+function captureOff(colorId) {
     const snap = captureCurrentSnapshot();
-    if (!snap) {
-        toastr.warning("No active character / prompt order — can't capture.");
-        return;
-    }
-    settings().offSnap = snap;
+    if (!snap) { toastr.warning("No prompt order found — can't capture."); return; }
+    sw(colorId).offSnap = snap;
     saveSettingsDebounced();
     updateUI();
-    toastr.success(`OFF snapshot captured (${Object.keys(snap).length} prompts).`);
+    toastr.success(`[${colorId}] OFF snapshot captured (${Object.keys(snap).length} prompts).`);
 }
 
-function clearOn()  { settings().onSnap = null;  saveSettingsDebounced(); updateUI(); }
-function clearOff() { settings().offSnap = null; saveSettingsDebounced(); updateUI(); }
+function clearSwitch(colorId) {
+    const s = sw(colorId);
+    s.onSnap = null;
+    s.offSnap = null;
+    s.state = false;
+    saveSettingsDebounced();
+    updateUI();
+}
 
-// Build the "apply when flipping to X" snapshot — only identifiers that
-// differ between ON and OFF are touched, so other prompts are left alone.
-function effectiveSnap(targetIsOn) {
-    const s = settings();
+function effectiveSnap(colorId, targetIsOn) {
+    const s = sw(colorId);
     const on = s.onSnap || {};
     const off = s.offSnap || {};
     const ids = new Set([...Object.keys(on), ...Object.keys(off)]);
     const out = {};
     for (const id of ids) {
-        const oVal = on[id];
-        const fVal = off[id];
-        if (oVal === fVal) continue; // no difference → don't touch
-        out[id] = targetIsOn ? oVal : fVal;
+        if (on[id] === off[id]) continue;
+        out[id] = targetIsOn ? on[id] : off[id];
     }
     return out;
 }
 
-async function flip() {
-    const s = settings();
-    if (!s.onSnap || !s.offSnap) {
-        toastr.warning("Capture both ON and OFF snapshots first.");
-        return;
-    }
+async function flip(colorId) {
+    const s = sw(colorId);
+    if (!s.onSnap || !s.offSnap) return; // disabled — silent no-op
     s.state = !s.state;
-    const snap = effectiveSnap(s.state);
-    const changed = applySnapshot(snap);
+    const snap = effectiveSnap(colorId, s.state);
+    applySnapshot(snap);
     saveSettingsDebounced();
     await refreshPromptManagerUI(snap);
     updateUI();
-    toastr.info(`Switch ${s.state ? "ON" : "OFF"} · ${changed} prompt(s) changed.`);
 }
 
 // ----- UI -----
 
-function updateUI() {
-    const s = settings();
-    $("#pswitch_state_label").text(s.state ? "ON" : "OFF");
-    $("#pswitch_on_status").text(s.onSnap ? `captured (${Object.keys(s.onSnap).length} prompts)` : "not captured");
-    $("#pswitch_off_status").text(s.offSnap ? `captured (${Object.keys(s.offSnap).length} prompts)` : "not captured");
-    updatePill();
+function renderSettingsRows() {
+    const $host = $("#pswitch_rows");
+    $host.empty();
+    for (const c of COLORS) {
+        const $row = $(`
+            <div class="pswitch-row" data-color="${c.id}" style="--pswitch-color:${c.hex}; --pswitch-dim:${c.dim};">
+                <span class="pswitch-color-dot" style="background:${c.hex};"></span>
+                <span class="pswitch-row-label">${c.id}</span>
+                <span class="pswitch-state-badge">OFF</span>
+                <input class="menu_button" type="button" data-action="capOn"  value="Cap ON" />
+                <input class="menu_button" type="button" data-action="capOff" value="Cap OFF" />
+                <input class="menu_button" type="button" data-action="clear"  value="Clear" />
+                <small class="pswitch-status-text"></small>
+            </div>
+        `);
+        $host.append($row);
+    }
+    $host.off("click").on("click", ".menu_button", function () {
+        const $row = $(this).closest(".pswitch-row");
+        const color = $row.data("color");
+        const action = $(this).data("action");
+        if (action === "capOn")  captureOn(color);
+        else if (action === "capOff") captureOff(color);
+        else if (action === "clear")  clearSwitch(color);
+    });
 }
 
-function updatePill() {
+function updateUI() {
     const s = settings();
-    const $pill = $("#pswitch_floating");
-    if (!$pill.length) return;
-    $pill.toggleClass("on", !!s.state);
-    const ready = !!(s.onSnap && s.offSnap);
-    $pill.toggleClass("disabled", !ready);
+    for (const c of COLORS) {
+        const st = s.switches[c.id];
+        const $row = $(`.pswitch-row[data-color="${c.id}"]`);
+        const ready = !!(st.onSnap && st.offSnap);
+        $row.find(".pswitch-state-badge").text(st.state ? "ON" : "OFF").toggleClass("on", !!st.state);
+        const onN  = st.onSnap  ? Object.keys(st.onSnap).length  : 0;
+        const offN = st.offSnap ? Object.keys(st.offSnap).length : 0;
+        $row.find(".pswitch-status-text").text(
+            `ON: ${st.onSnap ? `captured (${onN})` : "—"}  ·  OFF: ${st.offSnap ? `captured (${offN})` : "—"}`
+        );
+        const $icon = $(`#pswitch_floating_${c.id}`);
+        $icon.toggleClass("on", !!st.state).toggleClass("disabled", !ready);
+    }
 }
 
 function positionFloating() {
-    const $pill = $("#pswitch_floating");
-    if (!$pill.length) return;
     const sheld = document.getElementById("sheld");
+    let baseLeft, baseTop;
     if (sheld) {
         const rect = sheld.getBoundingClientRect();
         if (rect.width > 0 && rect.height > 0) {
-            $pill.css({
-                left: (rect.left + 8) + "px",
-                top: (rect.top + rect.height * 0.9) + "px",
-            });
-            return;
+            baseLeft = rect.left + 8;
+            baseTop = rect.top + rect.height * 0.9;
         }
     }
-    // Fallback: bottom-left of viewport.
-    $pill.css({ left: "8px", top: "90%" });
+    if (baseLeft === undefined) {
+        baseLeft = 8;
+        baseTop = window.innerHeight * 0.9;
+    }
+    const GAP = 32;
+    COLORS.forEach((c, i) => {
+        $(`#pswitch_floating_${c.id}`).css({
+            left: baseLeft + "px",
+            top: (baseTop - i * GAP) + "px",
+        });
+    });
 }
 
 // ----- init -----
@@ -225,19 +235,19 @@ jQuery(async () => {
     const html = await $.get(`${extensionFolderPath}/settings.html`);
     $("#extensions_settings").append(html);
 
-    // Floating switch button — lives on body so it isn't clipped by any parent overflow.
-    const $pill = $(`<div id="pswitch_floating" class="fa-solid fa-power-off" title="Click to flip switch"></div>`);
-    $pill.on("click", flip);
-    $("body").append($pill);
+    renderSettingsRows();
 
-    // Init values from saved settings.
+    // Floating icons — one per color, stacked vertically at bottom-left of #sheld.
+    for (const c of COLORS) {
+        const $icon = $(`<div id="pswitch_floating_${c.id}" class="pswitch-floating fa-solid fa-power-off" title="${c.id} switch"></div>`);
+        $icon.css("--pswitch-color", c.hex);
+        $icon.css("--pswitch-dim", c.dim);
+        $icon.on("click", () => flip(c.id));
+        $("body").append($icon);
+    }
+
     updateUI();
     positionFloating();
-
-    $("#pswitch_capture_on").on("click", captureOn);
-    $("#pswitch_capture_off").on("click", captureOff);
-    $("#pswitch_clear_on").on("click", clearOn);
-    $("#pswitch_clear_off").on("click", clearOff);
 
     window.addEventListener("resize", positionFloating);
     setInterval(positionFloating, 1000);

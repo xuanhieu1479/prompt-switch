@@ -1,8 +1,36 @@
-.prompt-switch-settings .pswitch-block {
-    margin: 8px 0;
-}
+.prompt-switch-settings .pswitch-block { margin: 8px 0; }
 
-#pswitch_floating {
+/* Settings row per switch */
+.pswitch-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    flex-wrap: wrap;
+}
+.pswitch-row:last-child { border-bottom: none; }
+.pswitch-color-dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    flex-shrink: 0;
+    box-shadow: 0 0 4px rgba(0,0,0,0.4);
+}
+.pswitch-row-label { min-width: 60px; font-weight: 600; text-transform: capitalize; }
+.pswitch-state-badge {
+    font-size: 0.8em;
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: #444;
+    min-width: 28px;
+    text-align: center;
+}
+.pswitch-state-badge.on { background: var(--pswitch-color, #888); color: white; }
+.pswitch-row small { opacity: 0.75; }
+
+/* Floating icons — pure icons, no circles, stacked vertically at bottom-left of #sheld */
+.pswitch-floating {
     position: fixed;
     z-index: 9999;
     width: 36px;
@@ -11,20 +39,20 @@
     border: none;
     background: transparent;
     box-shadow: none;
-    color: #e06c6c;
     cursor: pointer;
-    opacity: 0.6;
+    opacity: 0.55;
     display: flex;
     align-items: center;
     justify-content: center;
     font-size: 1em;
     transform: translateY(-50%);
     user-select: none;
+    color: var(--pswitch-dim, #888);
 }
-#pswitch_floating:hover { opacity: 1; }
-#pswitch_floating.on {
-    color: #ff4444;
+.pswitch-floating:hover { opacity: 1; }
+.pswitch-floating.on {
+    color: var(--pswitch-color, #fff);
     opacity: 1;
-    text-shadow: 0 0 8px rgba(255, 68, 68, 0.8);
+    text-shadow: 0 0 8px var(--pswitch-color, rgba(255,255,255,0.8));
 }
-#pswitch_floating.disabled { opacity: 0.3; cursor: not-allowed; }
+.pswitch-floating.disabled { opacity: 0.25; cursor: not-allowed; }

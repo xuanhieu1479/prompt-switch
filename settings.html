@@ -7,33 +7,15 @@
         <div class="inline-drawer-content">
 
             <div class="pswitch-block">
-                <b>Current state:</b> <span id="pswitch_state_label">OFF</span>
-            </div>
-
-            <div class="pswitch-block">
-                <b>ON snapshot:</b> <span id="pswitch_on_status">not captured</span>
-                <div class="flex-container" style="gap:6px; margin-top: 4px;">
-                    <input id="pswitch_capture_on" class="menu_button" type="button" value="Capture ON from current" />
-                    <input id="pswitch_clear_on" class="menu_button" type="button" value="Clear" />
-                </div>
-            </div>
-
-            <div class="pswitch-block">
-                <b>OFF snapshot:</b> <span id="pswitch_off_status">not captured</span>
-                <div class="flex-container" style="gap:6px; margin-top: 4px;">
-                    <input id="pswitch_capture_off" class="menu_button" type="button" value="Capture OFF from current" />
-                    <input id="pswitch_clear_off" class="menu_button" type="button" value="Clear" />
-                </div>
+                <small>
+                    Arrange prompts how you want them, then capture. Flip using the icons at the bottom-left of the chat area.
+                    Only prompts that differ between a switch's ON and OFF snapshots are actually touched when you flip it.
+                </small>
             </div>
 
             <hr class="sysHR" />
 
-            <div class="pswitch-block">
-                <small>
-                    Arrange prompts how you want them, then capture. Flip using the pill at the bottom-left of the chat area.
-                    Only prompts that differ between ON and OFF snapshots are actually touched when you flip.
-                </small>
-            </div>
+            <div id="pswitch_rows"></div>
 
             <hr class="sysHR" />
         </div>
