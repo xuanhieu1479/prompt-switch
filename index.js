@@ -80,15 +80,45 @@ function applySnapshot(snap) {
     return changed;
 }
 
-// Try to force the prompt manager UI to re-render after we mutate state.
-function refreshPromptManagerUI() {
+// Force the prompt manager UI to re-render after we mutate state. ST doesn't
+// expose a clean hook, so try several paths and fall back to simulating a
+// toggle-click in the DOM for each prompt whose state no longer matches
+// what we've written to data.
+async function refreshPromptManagerUI(snapApplied) {
+    // 1) Global reference (some ST versions).
     try {
         if (typeof window !== "undefined" && window.promptManager?.render) {
             window.promptManager.render();
             return;
         }
     } catch (_) {}
+    // 2) Dynamic import of openai.js.
+    try {
+        const mod = await import("../../../openai.js");
+        if (mod.promptManager?.render) { mod.promptManager.render(); return; }
+        if (typeof mod.renderPromptManager === "function") { mod.renderPromptManager(); return; }
+    } catch (_) {}
+    // 3) DOM toggle fallback — click ST's own toggle for any prompt whose
+    //    visible UI state is out of sync with the data we just wrote.
+    if (snapApplied) syncPromptManagerDom(snapApplied);
+    // 4) Broadcast events as a last resort.
     try { eventSource.emit(event_types.SETTINGS_UPDATED); } catch (_) {}
+}
+
+// For each identifier in `snap`, if the DOM toggle doesn't visually match
+// the target, click it. ST's own click handler flips data + redraws + saves,
+// which is precisely the refresh we want. Tries a few selector variants to
+// survive minor ST version differences.
+function syncPromptManagerDom(snap) {
+    for (const [id, target] of Object.entries(snap)) {
+        const $row = $(`#completion_prompt_manager_list [data-pm-identifier="${id}"]`).first();
+        if (!$row.length) continue;
+        const currentlyOn = $row.find(".fa-toggle-on").length > 0
+            || $row.hasClass("completion_prompt_manager_prompt_enabled");
+        if (currentlyOn === !!target) continue;
+        const $toggle = $row.find(".prompt-manager-toggle-action, .prompt_manager_toggle, .fa-toggle-on, .fa-toggle-off").first();
+        if ($toggle.length) $toggle.trigger("click");
+    }
 }
 
 // ----- state operations -----
@@ -137,16 +167,17 @@ function effectiveSnap(targetIsOn) {
     return out;
 }
 
-function flip() {
+async function flip() {
     const s = settings();
     if (!s.onSnap || !s.offSnap) {
         toastr.warning("Capture both ON and OFF snapshots first.");
         return;
     }
     s.state = !s.state;
-    const changed = applySnapshot(effectiveSnap(s.state));
+    const snap = effectiveSnap(s.state);
+    const changed = applySnapshot(snap);
     saveSettingsDebounced();
-    refreshPromptManagerUI();
+    await refreshPromptManagerUI(snap);
     updateUI();
     toastr.info(`Switch ${s.state ? "ON" : "OFF"} · ${changed} prompt(s) changed.`);
 }
