@@ -6,7 +6,6 @@ const extensionName = "prompt-switch";
 const extensionFolderPath = `scripts/extensions/third-party/${extensionName}`;
 
 const defaultSettings = {
-    name: "Switch",
     state: false,        // false = OFF, true = ON
     onSnap: null,        // { [identifier]: enabledBool } or null
     offSnap: null,
@@ -24,27 +23,31 @@ function settings() {
 
 // ----- prompt-order access -----
 
-// Returns the `order` array for the currently active character, or null if none.
-// ST stores order per-character-id in oai_settings.prompt_order, which can be
-// either an array of {character_id, order} or a map keyed by character_id
-// depending on version — handle both.
+// Returns the default/global prompt order — what the prompt manager UI
+// shows unless the user has explicitly created a per-character override
+// (rare). ST tags this entry with character_id === 100001. Falls back to
+// the first non-empty order if the 100001 default isn't present.
 function getCurrentOrder() {
-    const context = getContext();
-    const charId = context.characterId;
-    if (charId === undefined || charId === null) return null;
-
     const po = oai_settings?.prompt_order;
-    if (!po) return null;
+    if (!po) { console.warn("[prompt-switch] oai_settings.prompt_order missing"); return null; }
 
+    // Normalize both possible shapes into an array of { character_id, order }.
+    let entries;
     if (Array.isArray(po)) {
-        const entry = po.find(e => String(e.character_id) === String(charId));
-        return entry?.order || null;
+        entries = po;
+    } else if (typeof po === "object") {
+        entries = Object.entries(po).map(([k, v]) =>
+            ({ character_id: k, order: v?.order || v }));
+    } else {
+        return null;
     }
-    if (typeof po === "object") {
-        const entry = po[charId] || po[String(charId)];
-        return entry?.order || null;
-    }
-    return null;
+    if (!entries.length) return null;
+
+    const def = entries.find(e => String(e.character_id) === "100001");
+    if (Array.isArray(def?.order) && def.order.length) return def.order;
+
+    const any = entries.find(e => Array.isArray(e?.order) && e.order.length);
+    return any?.order || null;
 }
 
 function captureCurrentSnapshot() {
@@ -152,7 +155,6 @@ function flip() {
 
 function updateUI() {
     const s = settings();
-    $("#pswitch_name").val(s.name);
     $("#pswitch_state_label").text(s.state ? "ON" : "OFF");
     $("#pswitch_on_status").text(s.onSnap ? `captured (${Object.keys(s.onSnap).length} prompts)` : "not captured");
     $("#pswitch_off_status").text(s.offSnap ? `captured (${Object.keys(s.offSnap).length} prompts)` : "not captured");
@@ -166,7 +168,6 @@ function updatePill() {
     $pill.toggleClass("on", !!s.state);
     const ready = !!(s.onSnap && s.offSnap);
     $pill.toggleClass("disabled", !ready);
-    $pill.find(".pswitch-label").text(s.name || "Switch");
 }
 
 function positionFloating() {
@@ -193,13 +194,8 @@ jQuery(async () => {
     const html = await $.get(`${extensionFolderPath}/settings.html`);
     $("#extensions_settings").append(html);
 
-    // Floating pill — lives on body so it isn't clipped by any parent overflow.
-    const $pill = $(`
-        <div id="pswitch_floating" title="Click to flip switch">
-            <span class="pswitch-dot"></span>
-            <span class="pswitch-label">Switch</span>
-        </div>
-    `);
+    // Floating switch button — lives on body so it isn't clipped by any parent overflow.
+    const $pill = $(`<div id="pswitch_floating" class="fa-solid fa-power-off" title="Click to flip switch"></div>`);
     $pill.on("click", flip);
     $("body").append($pill);
 
@@ -207,12 +203,6 @@ jQuery(async () => {
     updateUI();
     positionFloating();
 
-    // Wire inputs.
-    $("#pswitch_name").on("input", () => {
-        settings().name = $("#pswitch_name").val() || "Switch";
-        saveSettingsDebounced();
-        updatePill();
-    });
     $("#pswitch_capture_on").on("click", captureOn);
     $("#pswitch_capture_off").on("click", captureOff);
     $("#pswitch_clear_on").on("click", clearOn);
