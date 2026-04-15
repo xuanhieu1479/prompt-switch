@@ -1,0 +1,48 @@
+<div class="prompt-switch-settings">
+    <div class="inline-drawer">
+        <div class="inline-drawer-toggle inline-drawer-header">
+            <b>Prompt Switch</b>
+            <div class="inline-drawer-icon fa-solid fa-circle-chevron-down down"></div>
+        </div>
+        <div class="inline-drawer-content">
+
+            <div class="pswitch-block">
+                <label for="pswitch_name"><b>Switch name</b></label>
+                <input id="pswitch_name" type="text" class="text_pole" placeholder="Pre-Reasoning" />
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="pswitch-block">
+                <b>Current state:</b> <span id="pswitch_state_label">OFF</span>
+            </div>
+
+            <div class="pswitch-block">
+                <b>ON snapshot:</b> <span id="pswitch_on_status">not captured</span>
+                <div class="flex-container" style="gap:6px; margin-top: 4px;">
+                    <input id="pswitch_capture_on" class="menu_button" type="button" value="Capture ON from current" />
+                    <input id="pswitch_clear_on" class="menu_button" type="button" value="Clear" />
+                </div>
+            </div>
+
+            <div class="pswitch-block">
+                <b>OFF snapshot:</b> <span id="pswitch_off_status">not captured</span>
+                <div class="flex-container" style="gap:6px; margin-top: 4px;">
+                    <input id="pswitch_capture_off" class="menu_button" type="button" value="Capture OFF from current" />
+                    <input id="pswitch_clear_off" class="menu_button" type="button" value="Clear" />
+                </div>
+            </div>
+
+            <hr class="sysHR" />
+
+            <div class="pswitch-block">
+                <small>
+                    Arrange prompts how you want them, then capture. Flip using the pill at the bottom-left of the chat area.
+                    Only prompts that differ between ON and OFF snapshots are actually touched when you flip.
+                </small>
+            </div>
+
+            <hr class="sysHR" />
+        </div>
+    </div>
+</div>
