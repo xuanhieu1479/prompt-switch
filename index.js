@@ -158,6 +158,8 @@ async function flip(colorId) {
     saveSettingsDebounced();
     await refreshPromptManagerUI(snap);
     updateUI();
+    // Refocus chat input so user can keep typing immediately.
+    $("#send_textarea").focus();
 }
 
 // ----- UI -----
