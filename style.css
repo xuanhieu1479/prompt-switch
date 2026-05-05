@@ -32,7 +32,7 @@
 /* Floating icons — pure icons, no circles, stacked vertically at bottom-left of #sheld */
 .pswitch-floating {
     position: fixed;
-    z-index: 9999;
+    z-index: 40;
     width: 36px;
     height: 36px;
     padding: 0;
