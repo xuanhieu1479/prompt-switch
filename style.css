@@ -26,6 +26,7 @@
     background: rgba(255,255,255,0.08);
     opacity: 0.6;
     font-family: inherit;
+    color: white;
 }
 .pswitch-state-badge {
     font-size: 0.8em;
