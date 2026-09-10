@@ -248,6 +248,15 @@ jQuery(async () => {
         $("body").append($icon);
     }
 
+    // Keyboard shortcuts — Alt+1…5 toggles red…purple.
+    document.addEventListener("keydown", (e) => {
+        if (!e.altKey || e.ctrlKey || e.shiftKey || e.metaKey) return;
+        const idx = parseInt(e.key, 10) - 1;
+        if (idx < 0 || idx >= COLORS.length) return;
+        e.preventDefault();
+        flip(COLORS[idx].id);
+    });
+
     updateUI();
     positionFloating();
 
