@@ -167,11 +167,13 @@ async function flip(colorId) {
 function renderSettingsRows() {
     const $host = $("#pswitch_rows");
     $host.empty();
-    for (const c of COLORS) {
+    for (let i = 0; i < COLORS.length; i++) {
+        const c = COLORS[i];
         const $row = $(`
             <div class="pswitch-row" data-color="${c.id}" style="--pswitch-color:${c.hex}; --pswitch-dim:${c.dim};">
                 <span class="pswitch-color-dot" style="background:${c.hex};"></span>
                 <span class="pswitch-row-label">${c.id}</span>
+                <kbd class="pswitch-hotkey">Alt+${i + 1}</kbd>
                 <span class="pswitch-state-badge">OFF</span>
                 <input class="menu_button" type="button" data-action="capOn"  value="Cap ON" />
                 <input class="menu_button" type="button" data-action="capOff" value="Cap OFF" />

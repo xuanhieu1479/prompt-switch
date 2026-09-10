@@ -18,6 +18,15 @@
     box-shadow: 0 0 4px rgba(0,0,0,0.4);
 }
 .pswitch-row-label { min-width: 60px; font-weight: 600; text-transform: capitalize; }
+.pswitch-hotkey {
+    font-size: 0.75em;
+    padding: 1px 5px;
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 3px;
+    background: rgba(255,255,255,0.08);
+    opacity: 0.6;
+    font-family: inherit;
+}
 .pswitch-state-badge {
     font-size: 0.8em;
     padding: 2px 6px;
